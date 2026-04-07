@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
-import { REQUEST_URL } from "../utils/constants";
+import { REQUEST_URL, PROFILE_URL } from "../utils/constants";
 import { useNavigate } from "react-router-dom";
 
 const STATUS_BADGE = {
@@ -112,6 +112,7 @@ const DiscoverTab = () => {
 /* ─── Sent Requests ──────────────────────────────────────────────────────── */
 const SentTab = () => {
   const [requests, setRequests] = useState([]);
+  const [profiles, setProfiles] = useState({});
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(null);
   const navigate = useNavigate();
@@ -122,7 +123,21 @@ const SentTab = () => {
       const res = await axios.get(REQUEST_URL + "invites/sent", {
         withCredentials: true,
       });
-      setRequests(res.data?.data?.data ?? res.data?.data ?? []);
+      const reqs = res.data?.data?.data ?? res.data?.data ?? [];
+      setRequests(reqs);
+
+      const profileMap = {};
+      await Promise.all(
+        reqs.map(async (r) => {
+          const id = r.toUserId?.toString();
+          if (!id) return;
+          try {
+            const p = await axios.get(PROFILE_URL + "profile/" + id, { withCredentials: true });
+            profileMap[id] = p.data?.data;
+          } catch { /* leave undefined */ }
+        })
+      );
+      setProfiles(profileMap);
     } catch (err) {
       if (err?.response?.status === 401) navigate("/login");
     } finally {
@@ -173,9 +188,9 @@ const SentTab = () => {
             className="card bg-base-100/70 backdrop-blur border border-base-300 rounded-xl shadow hover:shadow-md transition-shadow"
           >
             <div className="card-body flex-row items-center gap-4 py-3 px-4">
-              <Avatar name={r.toUserId?.toString() ?? "?"} />
+              <Avatar name={[profiles[r.toUserId?.toString()]?.firstName, profiles[r.toUserId?.toString()]?.lastName].filter(Boolean).join(" ") || r.toUserId?.toString() || "?"} />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold truncate">To: <span className="text-base-content/70">{r.toUserId?.toString() ?? r.toUserId}</span></p>
+                <p className="text-sm font-semibold truncate">To: <span className="text-base-content/70">{[profiles[r.toUserId?.toString()]?.firstName, profiles[r.toUserId?.toString()]?.lastName].filter(Boolean).join(" ") || r.toUserId?.toString()}</span></p>
                 <p className="text-xs text-base-content/40 mt-0.5">
                   {new Date(r.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
                 </p>
@@ -201,6 +216,7 @@ const SentTab = () => {
 /* ─── Received Requests ──────────────────────────────────────────────────── */
 const ReceivedTab = () => {
   const [requests, setRequests] = useState([]);
+  const [profiles, setProfiles] = useState({});
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(null);
   const navigate = useNavigate();
@@ -211,13 +227,23 @@ const ReceivedTab = () => {
       const res = await axios.get(REQUEST_URL + "invites/received", {
         withCredentials: true,
       });
-      
-      // Get all received requests
+
       const allReceived = res.data?.data?.data ?? res.data?.data ?? [];
-      
       const pendingOnly = allReceived.filter(r => r.status === "pending");
-      
       setRequests(pendingOnly);
+
+      const profileMap = {};
+      await Promise.all(
+        pendingOnly.map(async (r) => {
+          const id = r.fromUserId?.toString();
+          if (!id) return;
+          try {
+            const p = await axios.get(PROFILE_URL + "profile/" + id, { withCredentials: true });
+            profileMap[id] = p.data?.data;
+          } catch { /* leave undefined */ }
+        })
+      );
+      setProfiles(profileMap);
     } catch (err) {
       if (err?.response?.status === 401) navigate("/login");
     } finally {
@@ -270,9 +296,9 @@ const ReceivedTab = () => {
           className="card bg-base-100/70 backdrop-blur border border-primary/15 rounded-xl shadow hover:shadow-md transition-shadow"
         >
           <div className="card-body flex-row items-center gap-4 py-3 px-4">
-            <Avatar name={r.fromUserId?.toString() ?? "?"} size="w-11 h-11" />
+            <Avatar name={[profiles[r.fromUserId?.toString()]?.firstName, profiles[r.fromUserId?.toString()]?.lastName].filter(Boolean).join(" ") || r.fromUserId?.toString() || "?"} size="w-11 h-11" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold truncate">From: <span className="text-base-content/70">{r.fromUserId?.toString() ?? r.fromUserId}</span></p>
+              <p className="text-sm font-semibold truncate">From: <span className="text-base-content/70">{[profiles[r.fromUserId?.toString()]?.firstName, profiles[r.fromUserId?.toString()]?.lastName].filter(Boolean).join(" ") || r.fromUserId?.toString()}</span></p>
               {r.message && <p className="text-xs text-base-content/50 mt-0.5 italic truncate">"{r.message}"</p>}
               <p className="text-xs text-base-content/40 mt-0.5">
                 {new Date(r.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { io } from "socket.io-client";
 import axios from "axios";
-import { REQUEST_URL, CHAT_URL } from "../utils/constants";
+import { REQUEST_URL, CHAT_URL, PROFILE_URL } from "../utils/constants";
 
 const fmt = (dateStr) => {
   const d = new Date(dateStr);
@@ -109,7 +109,21 @@ const ChatSidebar = ({ activeChatId, onSelectChat }) => {
           return true;
         });
 
-        setConnections(deduped);
+        // Resolve real names from profile service
+        const withNames = await Promise.all(
+          deduped.map(async (c) => {
+            try {
+              const res = await axios.get(PROFILE_URL + "profile/" + c.peerId, { withCredentials: true });
+              const p = res.data?.data;
+              const name = [p?.firstName, p?.lastName].filter(Boolean).join(" ");
+              return { ...c, label: name || c.label };
+            } catch {
+              return c;
+            }
+          })
+        );
+
+        setConnections(withNames);
       } catch (err) {
         if (err?.response?.status === 401) { navigate("/login"); return; }
         if (!err?.response) setError("Request service offline (port 5002)");
