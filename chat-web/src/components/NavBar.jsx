@@ -1,7 +1,7 @@
 import axios from "axios";
 import { useDispatch, useSelector } from "react-redux";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { BASE_URL } from "../utils/constants";
+import { AUTH_URL } from "../utils/constants";
 import { removeUser } from "../utils/userSlice";
 
 const NavBar = () => {
@@ -12,7 +12,7 @@ const NavBar = () => {
 
   const handleLogout = async () => {
     try {
-      await axios.post(BASE_URL + "/auth/logout", {}, { withCredentials: true });
+      await axios.post(AUTH_URL + "logout", {}, { withCredentials: true });
       dispatch(removeUser());
       navigate("/login");
     } catch (err) {
@@ -23,6 +23,16 @@ const NavBar = () => {
   const photo = user?.profilePic || user?.photoUrl;
 
   const navLinks = [
+    {
+      to: "/profile",
+      label: "Profile",
+      icon: (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+          <circle cx="12" cy="7" r="4"/>
+        </svg>
+      ),
+    },
     {
       to: "/friends",
       label: "Connections",
@@ -71,26 +81,29 @@ const NavBar = () => {
         </div>
       )}
 
-      {photo && (
-        <div className="flex gap-2">
-          <div className="dropdown dropdown-end mx-2 flex">
+      {user && (
+        <div className="flex items-center gap-2">
+          <div className="dropdown dropdown-end flex">
             <div tabIndex={0} role="button" className="btn btn-ghost btn-circle avatar">
               <div className="w-10 rounded-full">
-                <img alt="user photo" src={photo} />
+                {photo ? (
+                  <img alt="user photo" src={photo} />
+                ) : (
+                  <div className="w-full h-full rounded-full bg-primary/10 flex items-center justify-center">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                      strokeLinejoin="round" className="text-primary">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                      <circle cx="12" cy="7" r="4"/>
+                    </svg>
+                  </div>
+                )}
               </div>
             </div>
             <ul
               tabIndex={-1}
-              className="menu menu-sm dropdown-content bg-base-100 rounded-box z-10 mt-3 w-52 p-2 shadow"
+              className="menu menu-sm dropdown-content bg-base-100 rounded-box z-10 mt-3 w-40 p-2 shadow"
             >
-              <li>
-                <Link to="/profile" className="justify-between">
-                  Profile
-                  <span className="badge">New</span>
-                </Link>
-              </li>
-              <li><Link to="/friends">Connections</Link></li>
-              <li><Link to="/chat">Chat</Link></li>
               <li><a onClick={handleLogout}>Logout</a></li>
             </ul>
           </div>

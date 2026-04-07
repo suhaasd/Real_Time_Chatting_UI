@@ -3,7 +3,7 @@ import axios from "axios";
 import { useDispatch } from "react-redux";
 import { addUser } from "../utils/userSlice";
 import { useNavigate } from "react-router-dom";
-import { BASE_URL } from "../utils/constants";
+import { BASE_URL, PROFILE_URL } from "../utils/constants";
 
 const Login = () => {
   const [emailId, setEmailId] = useState("samarth2534@gmail.com");
@@ -18,12 +18,15 @@ const Login = () => {
 
   const handleLogin = async () => {
     try {
-      const res = await axios.post(
+      await axios.post(
         BASE_URL + "login",
         { emailId, password },
         { withCredentials: true },
       );
-      dispatch(addUser(res.data));
+      const profileRes = await axios.get(PROFILE_URL + "getProfile", {
+        withCredentials: true,
+      });
+      dispatch(addUser(profileRes.data.data));
       return navigate("/friends");
     } catch (err) {
       setError(err?.response?.data || "Something went wrong");

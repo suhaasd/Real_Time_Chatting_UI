@@ -1,11 +1,12 @@
 import { useSelector } from "react-redux";
 
-const PreviewCard = () => {
+const PreviewCard = ({ photoPreview }) => {
   const user = useSelector((store) => store.user);
 
   if (!user) return null;
 
-  const { firstName, lastName, profilePic, age, gender, about } = user;
+  const { firstName, lastName, age, gender, about } = user;
+  const profilePic = photoPreview || user.profilePic;
 
   return (
     <div className="flex flex-col items-center gap-3">
