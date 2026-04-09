@@ -359,6 +359,51 @@ const ChatSidebar = ({ activeChatId, onSelectChat }) => {
   );
 };
 
+/* ─── File helpers ───────────────────────────────────────────────────────── */
+const triggerDownload = (base64data, name, mimeType) => {
+  const bytes = atob(base64data);
+  const arr = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+  const blob = new Blob([arr], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+const FileAttachment = ({ file, isMine }) => {
+  if (!file?.data) return null;
+  if (file.mimeType?.startsWith("image/")) {
+    return (
+      <img
+        src={`data:${file.mimeType};base64,${file.data}`}
+        alt={file.name}
+        className="max-w-[240px] max-h-48 rounded-lg mb-1 cursor-pointer object-cover"
+        onClick={() => triggerDownload(file.data, file.name, file.mimeType)}
+        title="Click to download"
+      />
+    );
+  }
+  return (
+    <button
+      onClick={() => triggerDownload(file.data, file.name, file.mimeType)}
+      className={`flex items-center gap-2 py-1.5 px-2.5 rounded-lg mb-1 text-xs font-medium w-full text-left transition-colors ${
+        isMine
+          ? "bg-primary-content/15 hover:bg-primary-content/25"
+          : "bg-base-300 hover:bg-base-300/70"
+      }`}
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+      </svg>
+      <span className="truncate max-w-[160px]">{file.name}</span>
+      <span className="opacity-50 flex-shrink-0 ml-auto">{(file.size / 1024).toFixed(0)} KB</span>
+    </button>
+  );
+};
+
 /* ─── Message Bubble ─────────────────────────────────────────────────────── */
 const Bubble = ({ msg, isMine, senderName, isGroup }) => (
   <div className={`flex items-end gap-2 ${isMine ? "flex-row-reverse" : "flex-row"}`}>
@@ -370,9 +415,10 @@ const Bubble = ({ msg, isMine, senderName, isGroup }) => (
       }`}
     >
       {isGroup && !isMine && senderName && (
-        <p className="text-[10px] font-semibold text-secondary mb-0.5">{senderName}</p>
+        <p className="text-[10px] font-semibold text-accent mb-0.5">{senderName}</p>
       )}
-      <p className="break-words">{msg.text}</p>
+      <FileAttachment file={msg.file} isMine={isMine} />
+      {msg.text && <p className="break-words">{msg.text}</p>}
       <p className={`text-[10px] mt-1 ${isMine ? "text-primary-content/60 text-right" : "text-base-content/40"}`}>
         {fmt(msg.createdAt)}
       </p>
@@ -402,9 +448,12 @@ const ChatWindow = ({ chatId, peerLabel, isGroup }) => {
   const [input, setInput] = useState("");
   const [connected, setConnected] = useState(false);
   const [senderNames, setSenderNames] = useState({});
+  const [pendingFile, setPendingFile] = useState(null);
+  const [sending, setSending] = useState(false);
   const socketRef = useRef(null);
   const endRef = useRef(null);
   const inputRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const myId = (
     currentUser?.userId ??
@@ -478,8 +527,42 @@ const ChatWindow = ({ chatId, peerLabel, isGroup }) => {
     inputRef.current?.focus();
   };
 
+  const sendFile = async () => {
+    if (!pendingFile || !connected) return;
+    const formData = new FormData();
+    formData.append("file", pendingFile);
+    formData.append("chatId", chatId);
+    if (input.trim()) formData.append("text", input.trim());
+    try {
+      setSending(true);
+      await axios.post(CHAT_URL + "send-file", formData, { withCredentials: true });
+      setPendingFile(null);
+      setInput("");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      inputRef.current?.focus();
+    } catch (err) {
+      alert(err?.response?.data?.message || "Failed to send file");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert("File is too large. Maximum size is 5 MB.");
+      e.target.value = "";
+      return;
+    }
+    setPendingFile(file);
+    e.target.value = "";
+  };
+
+  const handleSend = () => { pendingFile ? sendFile() : sendMessage(); };
+
   const handleKey = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
   const grouped = groupByDate(messages);
@@ -537,12 +620,49 @@ const ChatWindow = ({ chatId, peerLabel, isGroup }) => {
 
       {/* Input */}
       <div className="px-4 py-3 border-t border-base-300 bg-base-100/70 backdrop-blur">
+        {/* File preview chip */}
+        {pendingFile && (
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-1.5 bg-base-200 rounded-lg px-3 py-1.5 text-xs min-w-0 flex-1">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 text-primary">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+              </svg>
+              <span className="truncate font-medium">{pendingFile.name}</span>
+              <span className="text-base-content/40 flex-shrink-0 ml-1">{(pendingFile.size / 1024).toFixed(0)} KB</span>
+            </div>
+            <button
+              onClick={() => setPendingFile(null)}
+              className="btn btn-ghost btn-xs btn-circle text-base-content/40 hover:text-error flex-shrink-0"
+            >✕</button>
+          </div>
+        )}
+
         <div className="flex items-end gap-2">
+          {/* Hidden file input */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            className="hidden"
+            onChange={handleFileSelect}
+          />
+          {/* Paperclip button */}
+          <button
+            className="btn btn-ghost btn-sm btn-circle self-end h-10 w-10 text-base-content/40 hover:text-primary flex-shrink-0"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={!connected}
+            title="Attach file (max 5 MB)"
+            type="button"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+            </svg>
+          </button>
+
           <textarea
             ref={inputRef}
             rows={1}
             value={input}
-            placeholder={connected ? "Type a message…" : "Waiting for connection…"}
+            placeholder={connected ? (pendingFile ? "Add a caption…" : "Type a message…") : "Waiting for connection…"}
             className="textarea textarea-bordered bg-base-200/60 focus:border-primary focus:outline-none resize-none flex-1 text-sm leading-relaxed max-h-32 min-h-[2.5rem]"
             style={{ height: "2.5rem" }}
             onChange={(e) => {
@@ -555,15 +675,18 @@ const ChatWindow = ({ chatId, peerLabel, isGroup }) => {
           />
           <button
             className="btn btn-primary btn-sm px-4 self-end h-10"
-            onClick={sendMessage}
-            disabled={!input.trim() || !connected}
+            onClick={handleSend}
+            disabled={(!input.trim() && !pendingFile) || !connected || sending}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
-            </svg>
+            {sending
+              ? <span className="loading loading-spinner loading-xs" />
+              : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                </svg>
+            }
           </button>
         </div>
-        <p className="text-[10px] text-base-content/30 mt-1.5 ml-1">Enter to send · Shift+Enter for newline</p>
+        <p className="text-[10px] text-base-content/30 mt-1.5 ml-1">Enter to send · Shift+Enter for newline · Max 5 MB per file</p>
       </div>
     </div>
   );
