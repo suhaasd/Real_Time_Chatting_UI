@@ -21,7 +21,7 @@ const Body = () => {
       dispatch(addUser(res.data.data));
     } catch (err) {
       if (err?.response?.status === 401) {
-        navigate("/error", { state: { code: 401 } });
+        navigate("/login");
       }
     }
   };
