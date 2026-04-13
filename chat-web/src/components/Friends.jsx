@@ -150,7 +150,7 @@ const SentTab = () => {
   const cancelRequest = async (id) => {
     setCancelling(id);
     try {
-      await axios.delete(`${REQUEST_URL}request/cancel/${id}`, { withCredentials: true });
+      await axios.delete(`${REQUEST_URL}cancel/${id}`, { withCredentials: true });
       setRequests((prev) => prev.filter((r) => r._id !== id));
     } catch (err) {
       console.error(err);
