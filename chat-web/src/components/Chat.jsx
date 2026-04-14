@@ -496,6 +496,9 @@ const Bubble = ({ msg, isMine, senderName, isGroup }) => (
       {isGroup && !isMine && senderName && (
         <p className="text-[10px] font-semibold text-accent mb-0.5">{senderName}</p>
       )}
+      {isGroup && isMine && (
+        <p className="text-[10px] font-semibold text-primary-content/70 mb-0.5 text-right">You</p>
+      )}
       <FileAttachment file={msg.file} isMine={isMine} />
       {msg.text && <p className="break-words">{msg.text}</p>}
       <p className={`text-[10px] mt-1 ${isMine ? "text-primary-content/60 text-right" : "text-base-content/40"}`}>
